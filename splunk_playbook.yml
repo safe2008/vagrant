@@ -1,0 +1,63 @@
+---
+- name: Configure Splunk
+  hosts: all
+  become: yes
+  vars:
+    splunk_deb: ""
+    role: ""
+
+  tasks:
+    - name: Ensure required packages are installed
+      apt:
+        name: wget
+        state: present
+        update_cache: yes
+
+    - name: Download Splunk package if not found locally
+      get_url:
+        url: "https://download.splunk.com/products/{{ role == 'splunk' | ternary('splunk', 'universalforwarder') }}/releases/9.4.0/linux/{{ role == 'splunk' | ternary('splunk-9.4.0-6b4ebe426ca6-linux-amd64.deb', 'splunkforwarder-9.4.0-6b4ebe426ca6-linux-amd64.deb') }}"
+        dest: "{{ splunk_deb }}"
+        force: no
+      when: splunk_deb | length > 0
+
+    - name: Install Splunk package
+      command: dpkg -i "{{ splunk_deb }}"
+      register: dpkg_result
+      ignore_errors: yes
+
+    - name: Fix missing dependencies for Splunk package
+      apt:
+        name: -f
+        state: present
+      when: dpkg_result is failed
+
+    - name: Configure user credentials
+      copy:
+        content: |
+          [user_info]
+          USERNAME=admin
+          PASSWORD=changeme123
+        dest: "/opt/{{ role == 'splunk' | ternary('splunk', 'splunkforwarder') }}/etc/system/local/user-seed.conf"
+
+    - name: Configure SSL settings
+      copy:
+        content: |
+          [sslConfig]
+          cliVerifyServerName = true
+        dest: "/opt/{{ role == 'splunk' | ternary('splunk', 'splunkforwarder') }}/etc/system/local/server.conf"
+
+    - name: Set PYTHONHTTPSVERIFY
+      lineinfile:
+        path: "/opt/{{ role == 'splunk' | ternary('splunk', 'splunkforwarder') }}/etc/splunk-launch.conf"
+        regexp: "^#?PYTHONHTTPSVERIFY=.*$"
+        line: "PYTHONHTTPSVERIFY=1"
+
+    - name: Enable Splunk to start on boot
+      command: "/opt/{{ role == 'splunk' | ternary('splunk', 'splunkforwarder') }}/bin/splunk enable boot-start --accept-license --answer-yes"
+
+    - name: Start Splunk service
+      command: "/opt/{{ role == 'splunk' | ternary('splunk', 'splunkforwarder') }}/bin/splunk start"
+
+    - name: Configure Splunk Forwarder to forward logs (only for forwarder role)
+      command: "/opt/splunkforwarder/bin/splunk add forward-server localhost:9997"
+      when: role == "forwarder"

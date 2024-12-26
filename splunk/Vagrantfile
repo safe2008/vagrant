@@ -1,0 +1,57 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/ubuntu2204"
+
+  # Configure Splunk server
+  config.vm.define "splunk" do |splunk|
+    splunk.vm.hostname = "splunk"
+    splunk.vm.provider "qemu" do |sp|
+      sp.arch = "x86_64"
+      sp.machine = "q35"
+      sp.cpu = "qemu64"
+      sp.net_device = "virtio-net-pci"
+    end
+    splunk.vm.network "private_network", type: "dhcp"
+
+    splunk.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = 2
+    end
+
+    # Update host ports to avoid collisions
+    splunk.vm.network "forwarded_port", guest: 8000, host: 8000, id: "splunk_web", auto_correct: true
+    splunk.vm.network "forwarded_port", guest: 8089, host: 8089, id: "splunk_mgmt", auto_correct: true
+    splunk.vm.network "forwarded_port", guest: 9997, host: 9997, id: "splunk_receiver", auto_correct: true
+    splunk.vm.network "forwarded_port", guest: 22, host: 50224, id: "ssh", auto_correct: true
+
+    splunk.vm.synced_folder "./splunk_files", "/vagrant/splunk_files", type: "rsync"
+
+    splunk.vm.provision "shell", inline: <<-SHELL
+      set -euxo pipefail
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y
+      apt-get install -y wget
+
+      SPLUNK_DEB="/vagrant/splunk_files/splunk-9.4.0-6b4ebe426ca6-linux-amd64.deb"
+      if [ ! -f ${SPLUNK_DEB} ]; then
+        wget -O ${SPLUNK_DEB} "https://download.splunk.com/products/splunk/releases/9.4.0/linux/splunk-9.4.0-6b4ebe426ca6-linux-amd64.deb"
+      fi
+
+      dpkg -i ${SPLUNK_DEB} || apt-get install -f -y
+
+      mkdir -p /opt/splunk/etc/system/local
+      echo "[user_info]" > /opt/splunk/etc/system/local/user-seed.conf
+      echo "USERNAME=splunkadmin" >> /opt/splunk/etc/system/local/user-seed.conf
+      echo "PASSWORD=splunkadmin" >> /opt/splunk/etc/system/local/user-seed.conf
+
+      # echo "[sslConfig]" > /opt/splunk/etc/system/local/server.conf
+      # echo "cliVerifyServerName = true" >> /opt/splunk/etc/system/local/server.conf
+
+      # sed -i 's/^#\\?PYTHONHTTPSVERIFY=.*$/PYTHONHTTPSVERIFY=1/' /opt/splunk/etc/splunk-launch.conf
+      sed -i 's/^#\\?PYTHONHTTPSVERIFY=.*$/PYTHONHTTPSVERIFY=0/' /opt/splunk/etc/splunk-launch.conf
+
+      
+      /opt/splunk/bin/splunk enable boot-start --accept-license --answer-yes --no-prompt
+      /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt
+    SHELL
+  end
+end
