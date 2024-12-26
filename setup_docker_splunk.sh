@@ -1,23 +1,39 @@
 #!/bin/bash
 
-# Set file paths for the certificate and key
-CERT_PATH="/home/cert.pem"
-KEY_PATH="/home/key.pem"
+# Add the current user to the Docker group
+echo "Adding the current user to the Docker group..."
+sudo usermod -aG docker $USER
+
+# Refresh group membership for the current session
+echo "Refreshing group membership..."
+newgrp docker
+
+# Verify Docker access
+echo "Checking Docker access..."
+docker ps
+
+# Display the groups for the current user
+echo "Displaying groups for the current user..."
+groups $USER
+
+# Verify Docker access again
+echo "Verifying Docker access again..."
+docker ps
+
+# Run the Splunk container setup (replace with your Docker run command)
+CERT_PATH="$HOME/cert.pem"
+KEY_PATH="$HOME/key.pem"
 PASSWORD="abcd1234"
 
-# Create self-signed certificate and key using openssl
 echo "Generating self-signed certificate..."
-openssl req -x509 -newkey rsa:4096 -passout pass:$PASSWORD -keyout $KEY_PATH -out $CERT_PATH -days 365 -subj /CN=localhost
+openssl req -x509 -newkey rsa:4096 -passout pass:$PASSWORD -keyout $KEY_PATH -out $CERT_PATH -days 365 -subj "/CN=efb201210918/O=SplunkUser"
 
-# Check if openssl command was successful
 if [[ $? -ne 0 ]]; then
   echo "Failed to generate certificate. Exiting..."
   exit 1
 fi
 
-# Run Splunk container with SSL enabled
 echo "Running Splunk container with SSL enabled..."
-
 docker run -it -d --platform linux/amd64 \
   -p 8000:8000 -p 8191:8191 -p 8089:8089 -p 9997:9997 \
   -e "SPLUNK_HTTP_ENABLESSL=true" \
@@ -28,7 +44,6 @@ docker run -it -d --platform linux/amd64 \
   -e SPLUNK_PASSWORD="splunkadmin" \
   --name splunk-server splunk/splunk:latest
 
-# Check if docker command was successful
 if [[ $? -ne 0 ]]; then
   echo "Failed to start Splunk container. Exiting..."
   exit 1
