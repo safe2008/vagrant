@@ -5,3 +5,5 @@ splunk/.vagrant/*
 splunk/splunk_files/splunk-9.4.0-6b4ebe426ca6-linux-amd64.deb
 splunk_forwarder/splunk_files/splunkforwarder-9.4.0-6b4ebe426ca6-linux-amd64.deb
 splunk_forwarder/.vagrant/*
+certs/cert.pem
+certs/key.pem
