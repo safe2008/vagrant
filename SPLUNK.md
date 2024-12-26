@@ -81,8 +81,9 @@ Port	Description	Default
 8443	Splunk Cloud Gateway	Optional
 9887	Splunk DSP (Data Stream Processor)	Optional
 
-sudo ./docker-pre.sh
 sudo ./setup_splunk.sh
+sudo ./setup_splunk_ssl.sh
+docker exec -it splunk-server /bin/bash
 
 
 ```
